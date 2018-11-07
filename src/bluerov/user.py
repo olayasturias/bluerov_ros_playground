@@ -3,6 +3,8 @@
 import cv2
 import rospy
 import time
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge, CvBridgeError
 
 try:
     import pubs
@@ -51,6 +53,9 @@ class Code(object):
         self.sub.subscribe_topic('/mavros/rc/out', RCOut)
 
         self.cam = None
+
+    	self.bridge = CvBridge()
+        self.image_pub = rospy.Publisher("BlueRov2/image",Image)
         try:
             video_udp_port = rospy.get_param("/user_node/video_udp_port")
             rospy.loginfo("video_udp_port: {}".format(video_udp_port))
@@ -108,11 +113,24 @@ class Code(object):
             try:
                 # Get joystick data
                 joy = self.sub.get_data()['joy']['axes']
+                joy_buttons = self.sub.get_data()['joy']['buttons']
+
+                if joy_buttons[7] and not joy_buttons[6]:
+                    self.arm()
+
+                elif joy_buttons[6]:
+                    # set all values to zero (1500 in rc terms) (just to be safe)
+                    overridezero = [1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500]
+                    self.pub.set_data('/mavros/rc/override', overridezero)
+                    # disarm
+                    self.disarm()
 
                 # rc run between 1100 and 2000, a joy command is between -1.0 and 1.0
                 override = [int(val*400 + 1500) for val in joy]
+                print override
                 for _ in range(len(override), 8):
                     override.append(0)
+                print override
                 # Send joystick data as rc output into rc override topic
                 # (fake radio controller)
                 self.pub.set_data('/mavros/rc/override', override)
@@ -138,6 +156,11 @@ class Code(object):
                 frame = self.cam.frame()
                 cv2.imshow('frame', frame)
                 cv2.waitKey(1)
+		try:
+			self.image_pub.publish(self.bridge.cv2_to_imgmsg(frame, "bgr8"))
+		except CvBridgeError as e:
+			print(e)
+
             except Exception as error:
                 print('imshow error:', error)
 
