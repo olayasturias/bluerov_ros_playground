@@ -72,8 +72,8 @@ What is possible ?
     - Directional pad:
       - Up/Down: move the camera servo Up and Down.
       - Left/Right: TBD
-    - A button: TBD.
-    - B button: TBD.
+    - A button: set Manual control.
+    - B button: set Stabilize control.
     - Y button: TBD.
     - X button: TBD.
     - Left bumper: TBD.

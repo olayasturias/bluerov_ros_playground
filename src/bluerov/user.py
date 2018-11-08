@@ -22,6 +22,8 @@ from sensor_msgs.msg import JointState, Joy
 from sensor_msgs.msg import BatteryState
 from mavros_msgs.msg import OverrideRCIn, RCIn, RCOut
 
+from mavros_msgs.srv import SetMode, SetModeRequest
+
 
 class Code(object):
 
@@ -39,6 +41,7 @@ class Code(object):
         # Do what is necessary to start the process
         # and to leave gloriously
         self.arm()
+        self.is_armed = False
 
         self.sub = subs.Subs()
         self.pub = pubs.Pubs()
@@ -51,6 +54,7 @@ class Code(object):
         self.sub.subscribe_topic('/mavros/battery', BatteryState)
         self.sub.subscribe_topic('/mavros/rc/in', RCIn)
         self.sub.subscribe_topic('/mavros/rc/out', RCOut)
+
 
         self.cam = None
 
@@ -117,6 +121,7 @@ class Code(object):
 
                 if joy_buttons[7] and not joy_buttons[6]:
                     self.arm()
+                    self.is_armed = True
 
                 elif joy_buttons[6]:
                     # set all values to zero (1500 in rc terms) (just to be safe)
@@ -124,6 +129,25 @@ class Code(object):
                     self.pub.set_data('/mavros/rc/override', overridezero)
                     # disarm
                     self.disarm()
+                    self.is_armed = False
+
+                elif joy_buttons[0]:
+                    rospy.wait_for_service('/mavros/set_mode')
+                    nav_mode = rospy.ServiceProxy('/mavros/set_mode', SetMode)
+                    if self.is_armed:
+                        resp_nav = nav_mode(SetModeRequest.MAV_MODE_MANUAL_ARMED,'')
+                    else:
+                        resp_nav = nav_mode(SetModeRequest.MAV_MODE_MANUAL_DISARMED,'')
+
+                elif joy_buttons[1]:
+                    rospy.wait_for_service('/mavros/set_mode')
+                    nav_mode = rospy.ServiceProxy('/mavros/set_mode', SetMode)
+                    if self.is_armed:
+                        resp_nav = nav_mode(SetModeRequest.MAV_MODE_STABILIZE_ARMED,'')
+                    else:
+                        resp_nav = nav_mode(SetModeRequest.MAV_MODE_STABILIZE_DISARMED,'')
+
+
 
                 # rc run between 1100 and 2000, a joy command is between -1.0 and 1.0
                 override = [int(val*400 + 1500) for val in joy]
