@@ -51,8 +51,36 @@ What is possible ?
     This example will start user example, reading data from mavlink, interacting with joystick over rc commands and showing ROV video stream.
     - `roslaunch bluerov_ros_playground user_mav.launch`
 
+    In order for the controller to work with this node, the ROV must be in either STABILIZE or MANUAL mode. MANUAL mode can be set as:
+    - `rosrun mavros mavsys mode -c MANUAL`
+
     To run QGC parallel with user_mav, it's necessary to run user_mav first. If it's necessary to change the input, the parameter `joy_dev` can be used to set the one used.
 
+    <p align="center">
+      <img src="doc/imgs/360_controller.png">
+    </p>
+
+    The ROV can be controlled with the xbox 360 joystick as follows:
+      - Start: arm the vehicle.
+      - Back: disarm the vehicle.
+      - Left stick:
+        - Up/Down: move the ROV up and down.
+        - Left/Right: navigate left and right.
+      - Right stick:
+        - Up/Down: navigate forwards/backwards.
+        - Left/Right: yaw movement clockwise and counterclockwise.
+      - Directional pad:
+        - Up/Down: move the camera servo Up and Down.
+        - Left/Right: TBD
+      - A button: TBD.
+      - B button: TBD.
+      - Y button: TBD.
+      - X button: TBD.
+      - Left bumper: TBD.
+      - Right bumper: TBD.
+      - Left trigger: TBD.
+      - Right trigger: TBD.
+      
 - Visualize video stream
 
     Shows video stream using opencv and gstreamer

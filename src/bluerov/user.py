@@ -127,9 +127,11 @@ class Code(object):
 
                 # rc run between 1100 and 2000, a joy command is between -1.0 and 1.0
                 override = [int(val*400 + 1500) for val in joy]
-                print override
+
                 for _ in range(len(override), 8):
                     override.append(0)
+                override[5] = override[0]
+
                 print override
                 # Send joystick data as rc output into rc override topic
                 # (fake radio controller)
