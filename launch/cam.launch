@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+
+<launch>
+
+  <!-- publish corrected camera -->
+  <node respawn="true" pkg="bluerov_ros_playground" type="rectify_video.py" name="rect_vid">
+    <param name="mask" type="string" value="False" />
+  </node>
+
+
+</launch>

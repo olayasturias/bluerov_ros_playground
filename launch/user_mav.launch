@@ -36,4 +36,10 @@
   <node pkg="bluerov_ros_playground" type="user_mav" name="user_node" output="$(arg log_output)">
     <param name="video_udp_port" value="$(arg video_udp_port)"/>
   </node>
+
+  <!-- publish camera info -->
+  <node respawn="true" pkg="bluerov_ros_playground" type="camera_info_pub.py" name="cam_info_pub">
+    <param name="cam_file" type="string" value="$(find bluerov_ros_playground)/config/bluerov2_cam.yaml" />
+  </node>
+  
 </launch>
