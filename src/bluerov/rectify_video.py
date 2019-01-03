@@ -52,7 +52,7 @@ class CorrectImg():
         # low_pass_thread.setDaemon(True)
         # low_pass_thread.start()
 
-        homo_thread = ThreadWorker(self.y_queue, self.homomorphic_filter)
+        homo_thread = ThreadWorker(self.y_queue, self.fast_homomorphic_filter)
         homo_thread.setDaemon(True)
         homo_thread.start()
 
@@ -73,11 +73,11 @@ class CorrectImg():
         self.color_frame = bridge.imgmsg_to_cv2(data, "bgr8")
         undistorted = self.correct(self.color_frame)
         small = cv2.resize(undistorted,(0,0), fx=0.5, fy=0.5)
-        cropped = self.crop(small)
+        #cropped = self.crop(small)
 
-        self.img_queue.put(cropped)
+        self.img_queue.put(small)
 
-        img32  = np.float32(cropped)
+        img32  = np.float32(small)
         img_norm = img32/255
 
         yuv  = cv2.cvtColor(img_norm,cv2.COLOR_BGR2YUV)
@@ -97,12 +97,12 @@ class CorrectImg():
         #res = np.hstack((np.float32(cropped)/255, homo_image, blur))
         #cv2.imshow('original - homomorphic filtering - adaptive histogram equalization - blur', res)
         #res2 = np.hstack((np.float32(equ_image)/255, lp_image))
-        cv2.imshow('crop', cropped)
+        cv2.imshow('resized', small)
         if not self.homomorphic_queue.empty():
             y = self.homomorphic_queue.get()
-            # merged = cv2.merge((y,u,v))
-            # homo = cv2.cvtColor(merged,cv2.COLOR_YUV2BGR)
-            cv2.imshow('homo', y)
+            merged = cv2.merge((y,u,v))
+            homo = cv2.cvtColor(merged,cv2.COLOR_YUV2BGR)
+            cv2.imshow('homo', homo)
             cv2.moveWindow('homo', 40,30)
         if not self.equalization_queue.empty():
             cv2.imshow('equalization', self.equalization_queue.get())
@@ -335,6 +335,77 @@ class CorrectImg():
         rospy.logwarn("time to DO ALL %s", tconvert )
         self.homomorphic_queue.put(y)
 
+    def fast_homomorphic_filter(self, img):
+        '''
+        Code adapted from here :
+        https://sites.google.com/site/bazeilst/tutorials#TUTO9
+        As adapted from here :
+        https://dsp.stackexchange.com/questions/42476/homomorphic-filter-python-overflow
+        '''
+        rospy.logdebug('Entering homomorphic filter')
+        rows,cols = img.shape
+
+        rh, rl, cutoff = 2.5,0.5,32
+
+        y  = img
+
+        ## LOGARITHM
+        # Logarithm of image so it can be represented as a product of reflectance and illumination
+        # Computed with approximation by limits
+
+        n = 100000.0
+        y_log = n* (((y) ** (1/n)) - 1)
+
+        ## FOURIER TRANSFORM
+        # Represent image in frequency domain
+
+        # Check size for dft optimization
+        nrows = cv2.getOptimalDFTSize(rows)
+        ncols = cv2.getOptimalDFTSize(cols)
+
+        # Generate copy of image with optimized size
+        nimg = np.zeros((nrows,ncols))
+        nimg[:rows,:cols] = y_log
+
+        # Do the DFT itself
+        y_fft= cv2.dft(np.float32(nimg),flags=cv2.DFT_COMPLEX_OUTPUT)
+        y_fft_shift = np.fft.fftshift(y_fft)
+
+        ## HIGH PASS FILTER
+
+        DX = cols/cutoff
+
+        F = []
+        n = 100000.0
+        F = [(-((i-nrows/2)**2+(j-ncols/2)**2)) for i in range (nrows) for j in range (ncols)]
+        H = np.asarray(F,dtype=np.float64)/(2.0*DX**2)
+        H = H/n
+        H = (1-(1+H)**n)
+        H = H*(rh-rl)
+        H = H +rl
+        H = np.reshape(H,(nrows,ncols))
+
+        dft_complex = y_fft_shift[:,:,1] + y_fft_shift[:,:,0]*1j
+        result_filter = H * dft_complex
+
+        ## INVERSE FOURIER TRANSFORM
+
+        idft_flags = cv2.DFT_COMPLEX_OUTPUT| cv2.DFT_SCALE | cv2.DFT_REAL_OUTPUT
+
+        result_split = np.ndarray(y_fft_shift.shape)
+        result_split[:,:,0] = result_filter.imag
+        result_split[:,:,1] = result_filter.real
+
+        result_interm = cv2.idft(np.fft.ifftshift(result_split),flags = idft_flags)
+
+        ## EXPONENTIAL OF IMAGE
+        ## To revert the logarithm
+
+        result = np.exp(result_interm)
+        y = np.float32(result[0:rows,0:cols])
+
+        self.homomorphic_queue.put(y)
+        rospy.logdebug('homomorphic filtering done')
 
 
 
