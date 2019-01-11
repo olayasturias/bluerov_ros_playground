@@ -10,7 +10,7 @@ from sensor_msgs.msg import Image, CameraInfo
 import threading
 import Queue
 import time
-
+from skimage.restoration import (denoise_wavelet, estimate_sigma)
 
 class ThreadWorker(threading.Thread):
     def __init__(self, queue, function):
@@ -31,18 +31,10 @@ class CorrectImg():
         # Create rov pose publisher of odometry values
         self.apply_mask = apply_mask
         self.y_array = []
-        self.img_pub = rospy.Publisher('/BlueRov2/image_calibrated',
-                                       Image,
-                                       queue_size=10)
-        cam_info_sub = rospy.Subscriber('/BlueRov2/camera_info',
-                                        CameraInfo,
-                                        self.info_callback)
-        image_sub = rospy.Subscriber('/BlueRov2/image' ,
-                                     Image,
-                                     self.img_callback)
+        self.aux_queue = Queue.Queue(maxsize = 1)
 
-        self.img_queue          = Queue.Queue(maxsize = 10)
-        self.y_queue            = Queue.Queue(maxsize = 20)
+        self.img_queue          = Queue.Queue(maxsize = 5)
+        self.y_queue            = Queue.Queue(maxsize = 5)
         self.homomorphic_queue  = Queue.Queue(maxsize = 5)
         self.equalization_queue = Queue.Queue(maxsize = 5)
         self.gauss_queue        = Queue.Queue(maxsize = 5)
@@ -52,17 +44,34 @@ class CorrectImg():
         # low_pass_thread.setDaemon(True)
         # low_pass_thread.start()
 
-        homo_thread = ThreadWorker(self.y_queue, self.fast_homomorphic_filter)
-        homo_thread.setDaemon(True)
-        homo_thread.start()
+        # homo_thread = ThreadWorker(self.y_queue, self.fast_homomorphic_filter)
+        # homo_thread.setDaemon(True)
+        # homo_thread.start()
+
+        # noise_thread = ThreadWorker(self.aux_queue, self.denoise)+
+        # noise_thread.setDaemon(True)
+        # noise_thread.start()
 
         # equalization_thread = ThreadWorker(self.img_queue, self.yuv_equalization)
         # equalization_thread.setDaemon(True)
         # equalization_thread.start()
-        #
+
         # gauss_thread = ThreadWorker(self.img_queue, self.gaussblur)
         # gauss_thread.setDaemon(True)
         # gauss_thread.start()
+        self.subscribe()
+
+
+    def subscribe(self):
+        self.img_pub = rospy.Publisher('/BlueRov2/image_calibrated',
+                                       Image,
+                                       queue_size=10)
+        cam_info_sub = rospy.Subscriber('/BlueRov2/camera_info',
+                                        CameraInfo,
+                                        self.info_callback,queue_size=5)
+        image_sub = rospy.Subscriber('/BlueRov2/image' ,
+                                     Image,
+                                     self.img_callback,queue_size=5)
 
 
 
@@ -73,9 +82,10 @@ class CorrectImg():
         self.color_frame = bridge.imgmsg_to_cv2(data, "bgr8")
         undistorted = self.correct(self.color_frame)
         small = cv2.resize(undistorted,(0,0), fx=0.5, fy=0.5)
+        print small.shape
         #cropped = self.crop(small)
 
-        self.img_queue.put(small)
+        #self.img_queue.put(small)
 
         img32  = np.float32(small)
         img_norm = img32/255
@@ -85,7 +95,12 @@ class CorrectImg():
         y = yuv[:, :, 0]
         u = yuv[:, :, 1]
         v = yuv[:, :, 2]
-        self.y_queue.put(y)
+        try:
+            self.y_queue.put(y, True, timeout=0.1)
+        except:
+            self.y_queue.empty()
+
+        self.fast_homomorphic_filter(y)
 
 
         # rospy.logdebug('Publishing corrected image...')
@@ -97,25 +112,31 @@ class CorrectImg():
         #res = np.hstack((np.float32(cropped)/255, homo_image, blur))
         #cv2.imshow('original - homomorphic filtering - adaptive histogram equalization - blur', res)
         #res2 = np.hstack((np.float32(equ_image)/255, lp_image))
+
         cv2.imshow('resized', small)
+
         if not self.homomorphic_queue.empty():
             y = self.homomorphic_queue.get()
             merged = cv2.merge((y,u,v))
             homo = cv2.cvtColor(merged,cv2.COLOR_YUV2BGR)
             cv2.imshow('homo', homo)
-            cv2.moveWindow('homo', 40,30)
+
         if not self.equalization_queue.empty():
-            cv2.imshow('equalization', self.equalization_queue.get())
-            cv2.moveWindow('equalization', 552,30)
+            y2 = self.equalization_queue.get()
+            merged = cv2.merge((y2,u,v))
+            col = cv2.cvtColor(merged,cv2.COLOR_YUV2BGR)
+            cv2.imshow('equalization', col)
+
         if not self.lowpass_queue.empty():
             cv2.imshow('lowpass', self.lowpass_queue.get())
-            cv2.moveWindow('lowpass', 40,414)
+
         if not self.gauss_queue.empty():
             cv2.imshow('gauss', self.gauss_queue.get())
-            cv2.moveWindow('gauss', 552,414)
+
 
 
         cv2.waitKey(1)
+        #cv2.destroyAllWindows()
 
     def printyuv(self,y):
         print y.shape
@@ -270,71 +291,6 @@ class CorrectImg():
         self.equalization_queue.put(colorclahe)
 
 
-    def homomorphic_filter(self, img):
-        '''
-        Code adapted from here :
-        https://sites.google.com/site/bazeilst/tutorials#TUTO9
-        As adapted from here :
-        https://dsp.stackexchange.com/questions/42476/homomorphic-filter-python-overflow
-        '''
-        rospy.logdebug('Entering homomorphic filter')
-        start = time.time()
-        sstart = time.time()
-        rows,cols = img.shape
-
-        rh, rl, cutoff = 2.5,0.5,32
-
-        y  = img
-
-        y_log = np.log(y+0.01)
-        tconvert = time.time() - start
-        rospy.logwarn("time to compute first log %s", tconvert )
-
-
-        start = time.time()
-        y_fft = np.fft.fft2(y_log)
-        tconvert = time.time() - start
-        rospy.logwarn("time to compute first fft %s", tconvert )
-
-        start = time.time()
-        y_fft_shift = np.fft.fftshift(y_fft)
-        tconvert = time.time() - start
-        rospy.logwarn("time to compute second fft %s", tconvert )
-
-        start = time.time()
-        DX = cols/cutoff
-        G = np.ones((rows,cols))
-        for i in range(rows):
-            for j in range(cols):
-                G[i][j]=((rh-rl)*(1-np.exp(-((i-rows/2)**2+(j-cols/2)**2)/(2*DX**2))))+rl
-
-        tconvert = time.time() - start
-        rospy.logwarn("time to compute for loop %s", tconvert )
-
-        start = time.time()
-        result_filter = G * y_fft_shift
-        tconvert = time.time() - start
-        rospy.logwarn("time to compute result filter %s", tconvert )
-
-        start = time.time()
-        result_interm = np.real(np.fft.ifft2(np.fft.ifftshift(result_filter)))
-        tconvert = time.time() - start
-        rospy.logwarn("time to compute third fft %s", tconvert )
-
-        start = time.time()
-        result = np.exp(result_interm)
-        y = np.float32(result)
-        # r = np.float32(cr)
-        # b = np.float32(cb)
-
-
-        tconvert = time.time() - start
-        rospy.logwarn("time to convert image back %s", tconvert )
-
-        tconvert = time.time() - sstart
-        rospy.logwarn("time to DO ALL %s", tconvert )
-        self.homomorphic_queue.put(y)
-
     def fast_homomorphic_filter(self, img):
         '''
         Code adapted from here :
@@ -404,10 +360,13 @@ class CorrectImg():
         result = np.exp(result_interm)
         y = np.float32(result[0:rows,0:cols])
 
+        nldenoise = cv2.fastNlMeansDenoising(np.uint8(y*255),dst = None,
+                                             h=7,templateWindowSize=2,
+                                             searchWindowSize=7)
+
+
         self.homomorphic_queue.put(y)
-        rospy.logdebug('homomorphic filtering done')
-
-
+        self.equalization_queue.put(np.float32(nldenoise)/255)
 
 
     def crop(self, img):
@@ -450,8 +409,8 @@ if __name__ == '__main__':
         rospy.logdebug('apply mask %s', apply_mask)
         rate = rospy.Rate(1) # 1 Hz
         ci = CorrectImg(apply_mask)
-        rospy.sleep(1)
         cv2.destroyAllWindows()
         rospy.spin()
+
     except rospy.ROSInterruptException:
         pass
