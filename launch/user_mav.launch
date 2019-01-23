@@ -41,5 +41,9 @@
   <node respawn="true" pkg="bluerov_ros_playground" type="camera_info_pub.py" name="cam_info_pub">
     <param name="cam_file" type="string" value="$(find bluerov_ros_playground)/config/bluerov2_cam.yaml" />
   </node>
-  
+
+  <!-- publish corrected video -->
+  <node respawn="true" pkg="bluerov_ros_playground" type="rectify_video.py" name="rectify_video">
+  </node>
+
 </launch>

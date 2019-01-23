@@ -12,66 +12,21 @@ import Queue
 import time
 from skimage.restoration import (denoise_wavelet, estimate_sigma)
 
-class ThreadWorker(threading.Thread):
-    def __init__(self, queue, function):
-        threading.Thread.__init__(self)
-        self.queue = queue
-        self.function = function
-
-    def run(self):
-        while True:
-            while True:
-                m = self.queue.get()
-                if self.queue.empty():
-                    break
-            self.function(m)
-
 class CorrectImg():
     def __init__(self, apply_mask):
         # Create rov pose publisher of odometry values
         self.apply_mask = apply_mask
         self.y_array = []
-        self.aux_queue = Queue.Queue(maxsize = 1)
 
-        self.img_queue          = Queue.Queue(maxsize = 5)
-        self.y_queue            = Queue.Queue(maxsize = 5)
-        self.homomorphic_queue  = Queue.Queue(maxsize = 5)
-        self.equalization_queue = Queue.Queue(maxsize = 5)
-        self.gauss_queue        = Queue.Queue(maxsize = 5)
-        self.lowpass_queue      = Queue.Queue(maxsize = 5)
-
-        # low_pass_thread = ThreadWorker(self.img_queue, self.lowpasspixel)
-        # low_pass_thread.setDaemon(True)
-        # low_pass_thread.start()
-
-        # homo_thread = ThreadWorker(self.y_queue, self.fast_homomorphic_filter)
-        # homo_thread.setDaemon(True)
-        # homo_thread.start()
-
-        # noise_thread = ThreadWorker(self.aux_queue, self.denoise)+
-        # noise_thread.setDaemon(True)
-        # noise_thread.start()
-
-        # equalization_thread = ThreadWorker(self.img_queue, self.yuv_equalization)
-        # equalization_thread.setDaemon(True)
-        # equalization_thread.start()
-
-        # gauss_thread = ThreadWorker(self.img_queue, self.gaussblur)
-        # gauss_thread.setDaemon(True)
-        # gauss_thread.start()
-        self.subscribe()
-
-
-    def subscribe(self):
-        self.img_pub = rospy.Publisher('/BlueRov2/image_calibrated',
+        self.img_pub = rospy.Publisher('/BlueRov2/image_corrected',
                                        Image,
                                        queue_size=10)
-        cam_info_sub = rospy.Subscriber('/BlueRov2/camera_info',
-                                        CameraInfo,
-                                        self.info_callback,queue_size=5)
+        self.cam_info_sub = rospy.Subscriber('/BlueRov2/camera_info',
+                                            CameraInfo,
+                                            self.info_callback,queue_size=1)
         image_sub = rospy.Subscriber('/BlueRov2/image' ,
                                      Image,
-                                     self.img_callback,queue_size=5)
+                                     self.img_callback,queue_size=1)
 
 
 
@@ -81,11 +36,8 @@ class CorrectImg():
         # Read and convert data
         self.color_frame = bridge.imgmsg_to_cv2(data, "bgr8")
         undistorted = self.correct(self.color_frame)
-        small = cv2.resize(undistorted,(0,0), fx=0.5, fy=0.5)
-        print small.shape
-        #cropped = self.crop(small)
+        small = cv2.resize(undistorted,(0,0), fx=0.75, fy=0.75)
 
-        #self.img_queue.put(small)
 
         img32  = np.float32(small)
         img_norm = img32/255
@@ -95,53 +47,18 @@ class CorrectImg():
         y = yuv[:, :, 0]
         u = yuv[:, :, 1]
         v = yuv[:, :, 2]
-        try:
-            self.y_queue.put(y, True, timeout=0.1)
-        except:
-            self.y_queue.empty()
 
-        self.fast_homomorphic_filter(y)
+        corrected = self.fast_homomorphic_filter(y)
+        masked = self.circle_mask(corrected)
 
 
-        # rospy.logdebug('Publishing corrected image...')
-        # image_message = bridge.cv2_to_imgmsg(equ_image, encoding="bgr8")
-        # self.img_pub.publish(image_message)
+        # COLORED IMAGE OPTIONS
+        # merged = cv2.merge((corrected,np.uint8(u*255),np.uint8(v*255)))
+        # bgrimg = cv2.cvtColor(merged,cv2.COLOR_YUV2BGR)
 
-
-        # crop32 = np.float32(cropped)/255
-        #res = np.hstack((np.float32(cropped)/255, homo_image, blur))
-        #cv2.imshow('original - homomorphic filtering - adaptive histogram equalization - blur', res)
-        #res2 = np.hstack((np.float32(equ_image)/255, lp_image))
-
-        cv2.imshow('resized', small)
-
-        if not self.homomorphic_queue.empty():
-            y = self.homomorphic_queue.get()
-            merged = cv2.merge((y,u,v))
-            homo = cv2.cvtColor(merged,cv2.COLOR_YUV2BGR)
-            cv2.imshow('homo', homo)
-
-        if not self.equalization_queue.empty():
-            y2 = self.equalization_queue.get()
-            merged = cv2.merge((y2,u,v))
-            col = cv2.cvtColor(merged,cv2.COLOR_YUV2BGR)
-            cv2.imshow('equalization', col)
-
-        if not self.lowpass_queue.empty():
-            cv2.imshow('lowpass', self.lowpass_queue.get())
-
-        if not self.gauss_queue.empty():
-            cv2.imshow('gauss', self.gauss_queue.get())
-
-
-
-        cv2.waitKey(1)
-        #cv2.destroyAllWindows()
-
-    def printyuv(self,y):
-        print y.shape
-        return
-
+        rospy.logdebug('Publishing corrected image...')
+        image_message = bridge.cv2_to_imgmsg(masked, encoding="mono8")
+        self.img_pub.publish(image_message)
 
     def info_callback(self, data):
         self.K = np.reshape(data.K,(3,3))
@@ -154,6 +71,7 @@ class CorrectImg():
                                                           (data.width,data.height),
                                                           0,# alpha
                                                           (data.width,data.height))
+        self.cam_info_sub.unregister()
 
 
     def correct(self, img):
@@ -169,126 +87,18 @@ class CorrectImg():
 
         return undistorted_img
 
-    def gaussblur(self, img):
-
-        img  = np.float32(img)
-        img = img/255
-
-        img  = cv2.cvtColor(img,cv2.COLOR_BGR2YUV)
-
-        y = img[:, :, 0]
-        u = img[:, :, 1]
-        v = img[:, :, 2]
-
-        blur  = cv2.GaussianBlur(y,(11,11),11)
-
-        div = cv2.divide(y,blur)
-
-        merged = cv2.merge((div,u,v))
-        color = cv2.cvtColor(merged,cv2.COLOR_YUV2BGR)
-
-        self.gauss_queue.put(color)
-
-    def queue_get_all(self,q):
-        items = []
-        maxItemsToRetreive = 10
-        for numOfItemsRetrieved in range(0, maxItemsToRetreive):
-            try:
-                if numOfItemsRetrieved == maxItemsToRetreive:
-                    break
-                items.append(q.get_nowait())
-            except:
-                break
-        return items
-
-    def butter_lowpass_filter(self, data, cutoff, fs, order=5):
-        b, a = butter_lowpass(cutoff, fs, order=order)
-        y = lfilter(b, a, data)
-        return y
-
-    def lowpasspixel(self, img):
-        img  = cv2.cvtColor(img,cv2.COLOR_BGR2YUV)
-        rospy.logwarn(' Entering low pass filter function ')
-        yp = img[:, :, 0]
-        u = img[:, :, 1]
-        v = img[:, :, 2]
-
-        if not self.y_queue.empty() and self.y_queue.qsize>2:
-
-            y_array = self.queue_get_all(self.y_queue)
-            n,h,w = np.asarray(y_array).shape
-            nelements = h*w
-
-            #y_array = np.reshape(y_array,(n,1,nelements))
-            longarray = []
-            for image in y_array:
-                longarray.append(image.ravel())
-            longarray = np.asarray(longarray)
-
-            print longarray.shape
-
-        # print self.y_queue.qsize()
-
-        # #longarray = np.reshape(y,(1,nelements))
-        # longarray = y.ravel()
-        # self.y_array.append(longarray)
-        # y_array = np.asarray(self.y_array)
-            newimg = []
-
-            # Filter requirements.
-            order = 2
-            fs = 10       # sample rate, Hz
-            cutoff = fs/10
-            b, a = lowpass.butter_lowpass(cutoff, fs, order)
-
-            if n >1:
-                for i in range (0,nelements-1):
-                    try:
-                        x_lpf = lowpass.butter_lowpass_filter(longarray[:,i],
-                                                              cutoff,
-                                                              fs,
-                                                              order)
-                    except:
-                        rospy.logwarn('Low pass filter error. Array size is %s',n)
-            #     pix = x_lpf[len(x_lpf)-1]
-            #     # print x_lpf.shape
-            #     # print len(pix)
-            #     newimg.append(pix)
-            #     #x_lpf = []
-            # newimg.append(0)
-            # newimg = np.asarray(newimg)
-            # newimg = np.reshape(newimg,(h,w,1))
-            # newimg = np.float32(newimg)
-            # u = np.float32(u)
-            # v = np.float32(v)
-            # merged = cv2.merge((newimg,u,v))
-            # merged = np.float32(merged)
-            # color = cv2.cvtColor(merged,cv2.COLOR_YUV2BGR)
-            #
-            # self.lowpass_queue.put(color)
+    def circle_mask(self,img):
+        mask = np.zeros(img.shape[:2], np.uint8)
+        h, w = img.shape[:2]
+        # circle center
+        hc = int(h*0.33)
+        wc = int(w*0.45)
+        radius = int(w*0.44)
+        cv2.circle(mask,(wc,hc),radius,255,-1)
+        masked_img = cv2.bitwise_and(src1 = img,src2 = img, mask = mask)
 
 
-
-    def yuv_equalization(self,img):
-        '''
-        adaptive histogram equalization over Y channel
-        El modelo Y'UV consiste en una componente de luma y dos componentes
-        de crominancia (UV)
-        '''
-        img  = cv2.cvtColor(img,cv2.COLOR_BGR2YUV)
-
-        y = img[:, :, 0]
-        u = img[:, :, 1]
-        v = img[:, :, 2]
-
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-        cl1 = clahe.apply(y)
-
-        mergedclahe = cv2.merge((cl1,u,v))
-
-        colorclahe = cv2.cvtColor(mergedclahe,cv2.COLOR_YUV2BGR)
-
-        self.equalization_queue.put(colorclahe)
+        return masked_img
 
 
     def fast_homomorphic_filter(self, img):
@@ -356,43 +166,21 @@ class CorrectImg():
 
         ## EXPONENTIAL OF IMAGE
         ## To revert the logarithm
+        ## Sometimes high values appear, so we use clip to limit them
 
-        result = np.exp(result_interm)
-        y = np.float32(result[0:rows,0:cols])
-
-        nldenoise = cv2.fastNlMeansDenoising(np.uint8(y*255),dst = None,
-                                             h=7,templateWindowSize=2,
-                                             searchWindowSize=7)
+        result = np.exp(np.clip(result_interm,np.amin(result_interm),0))
+        y = result[0:rows,0:cols]
 
 
-        self.homomorphic_queue.put(y)
-        self.equalization_queue.put(np.float32(nldenoise)/255)
+        y = np.uint8(y*255)
 
+        median = cv2.medianBlur(y,5)
 
-    def crop(self, img):
-        mask = np.ones(img.shape[:2], np.uint8)*255
-        h, w = img.shape[:2]
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        cl1 = clahe.apply(median)
 
-        if self.apply_mask:
-            for j in range(int(2*h/3),h):
-                for i in range(0,int(3 * (w/h) * (j-3*h/4))):
-                    mask[j][i] = 0
+        return cl1
 
-            p = 0
-            for j in range(2*h/3,h):
-                for i in range(w-int(p*2.2),w):
-                    mask[j][i] = 0
-                p=p+1
-
-            p = 0
-            for j in range(0,5*h/12):
-                for i in range(w-int(p*0.5)-13,w):
-                    mask[j][i] = 0
-                p=p+1
-
-        masked_img = cv2.bitwise_and(img,img,mask = mask)
-
-        return masked_img
 
 
 
@@ -401,7 +189,7 @@ class CorrectImg():
 
 if __name__ == '__main__':
     try:
-        rospy.init_node('img_rectify', log_level=rospy.DEBUG)
+        rospy.init_node('img_rectify')#, log_level=rospy.DEBUG)
         try:
             apply_mask = rospy.get_param('~mask')
         except:
@@ -409,8 +197,8 @@ if __name__ == '__main__':
         rospy.logdebug('apply mask %s', apply_mask)
         rate = rospy.Rate(1) # 1 Hz
         ci = CorrectImg(apply_mask)
-        cv2.destroyAllWindows()
         rospy.spin()
 
     except rospy.ROSInterruptException:
+        cv2.destroyAllWindows()
         pass
