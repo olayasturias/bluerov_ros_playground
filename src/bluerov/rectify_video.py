@@ -6,9 +6,10 @@ import cv2
 assert cv2.__version__[0] == '3', 'The fisheye module requires opencv version >= 3.0.0'
 import numpy as np
 from cv_bridge import CvBridge, CvBridgeError
-from sensor_msgs.msg import Image, CameraInfo
+from sensor_msgs.msg import Image, CameraInfo, CompressedImage
 import threading
 import Queue
+import gc
 import time
 from skimage.restoration import (denoise_wavelet, estimate_sigma)
 
@@ -27,16 +28,31 @@ class CorrectImg():
         image_sub = rospy.Subscriber('/BlueRov2/image' ,
                                      Image,
                                      self.img_callback,queue_size=1)
+        image_sub = rospy.Subscriber('/BlueRov2/image/compressed' ,
+                                     CompressedImage,
+                                     self.img_callback,queue_size=1)
 
 
 
     def img_callback(self, data):
         rospy.logdebug('Received image topic...')
+        color_frame = []
         bridge = CvBridge()
-        # Read and convert data
-        self.color_frame = bridge.imgmsg_to_cv2(data, "bgr8")
-        undistorted = self.correct(self.color_frame)
+        if data.header.frame_id == 'BlueRov2Camera':
+            print 'bag'
+            np_arr = np.fromstring(data.data, np.uint8)
+            color_frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+            color_frame = cv2.resize(color_frame,(self.width,self.height))
+        else:
+            print 'nobag'
+            # Read and convert data
+            color_frame = bridge.imgmsg_to_cv2(data, "bgr8")
+
+        undistorted = self.correct(color_frame)
         small = cv2.resize(undistorted,(0,0), fx=0.75, fy=0.75)
+
+        cv2.imshow('small',small)
+        cv2.waitKey(3)
 
 
         img32  = np.float32(small)
@@ -60,6 +76,8 @@ class CorrectImg():
         image_message = bridge.cv2_to_imgmsg(masked, encoding="mono8")
         self.img_pub.publish(image_message)
 
+        gc.collect()
+
     def info_callback(self, data):
         self.K = np.reshape(data.K,(3,3))
         self.R = np.reshape(data.R,(3,3))
@@ -81,7 +99,7 @@ class CorrectImg():
                                                          self.newcameramtx,
                                                          (self.width,self.height),
                                                          cv2.CV_16SC2)
-        undistorted_img = cv2.remap(self.color_frame, map1, map2,
+        undistorted_img = cv2.remap(img, map1, map2,
                                     interpolation=cv2.INTER_LINEAR,
                                     borderMode=cv2.BORDER_CONSTANT)
 
