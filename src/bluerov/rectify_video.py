@@ -18,10 +18,13 @@ class CorrectImg():
         # Create rov pose publisher of odometry values
         self.apply_mask = apply_mask
         self.y_array = []
+        self.H = []
+        self.nrows = 0
+        self.ncols = 0
 
         self.img_pub = rospy.Publisher('/BlueRov2/image_corrected',
                                        Image,
-                                       queue_size=10)
+                                       queue_size=1)
         self.cam_info_sub = rospy.Subscriber('/BlueRov2/camera_info',
                                             CameraInfo,
                                             self.info_callback,queue_size=1)
@@ -39,34 +42,69 @@ class CorrectImg():
         color_frame = []
         bridge = CvBridge()
         if data.header.frame_id == 'BlueRov2Camera':
-            print 'bag'
             np_arr = np.fromstring(data.data, np.uint8)
             color_frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
             color_frame = cv2.resize(color_frame,(self.width,self.height))
         else:
-            print 'nobag'
             # Read and convert data
             color_frame = bridge.imgmsg_to_cv2(data, "bgr8")
 
         undistorted = self.correct(color_frame)
+        del color_frame
         small = cv2.resize(undistorted,(0,0), fx=0.75, fy=0.75)
-
-        cv2.imshow('small',small)
-        cv2.waitKey(3)
+        del undistorted
 
 
         img32  = np.float32(small)
         img_norm = img32/255
+        del small
 
         yuv  = cv2.cvtColor(img_norm,cv2.COLOR_BGR2YUV)
+        del img_norm
 
         y = yuv[:, :, 0]
         u = yuv[:, :, 1]
         v = yuv[:, :, 2]
+        rows, cols = y.shape
+        nrows = cv2.getOptimalDFTSize(rows)
+        ncols = cv2.getOptimalDFTSize(cols)
+
+        start = time.time()
+
+        # High pass filter for the homomorphic FILTER
+        # This calculation is costly, so that's why we take the operation out
+        # of the homomorphic function
+
+        if nrows != self.nrows or ncols != self.ncols:
+            self.nrows = nrows
+            self.ncols = ncols
+            rh, rl, cutoff = 2.5,0.5,32
+
+            DX = cols/cutoff
+
+            F = []
+            n = 100000.0
+            F = [(-((i-self.nrows/2)**2+(j-self.ncols/2)**2))
+                 for i in range (self.nrows) for j in range (self.ncols)]
+            H = np.asarray(F,dtype=np.float64)/(2.0*DX**2)
+            H = H/n
+            H = (1-(1+H)**n)
+            H = H*(rh-rl)
+            H = H +rl
+            self.H = np.reshape(H,(self.nrows,self.ncols))
+
 
         corrected = self.fast_homomorphic_filter(y)
+        end = time.time()
+        ttaken = (end-start)*1000
+        rospy.logwarn('time for homomorphic %s', ttaken)
+        del y
+        start = time.time()
         masked = self.circle_mask(corrected)
-
+        end = time.time()
+        ttaken = (end-start)*1000
+        rospy.logwarn('time for mask %s', ttaken)
+        del corrected
 
         # COLORED IMAGE OPTIONS
         # merged = cv2.merge((corrected,np.uint8(u*255),np.uint8(v*255)))
@@ -74,7 +112,9 @@ class CorrectImg():
 
         rospy.logdebug('Publishing corrected image...')
         image_message = bridge.cv2_to_imgmsg(masked, encoding="mono8")
+        del masked
         self.img_pub.publish(image_message)
+        del image_message
 
         gc.collect()
 
@@ -128,8 +168,8 @@ class CorrectImg():
         '''
         rospy.logdebug('Entering homomorphic filter')
         rows,cols = img.shape
-
-        rh, rl, cutoff = 2.5,0.5,32
+        nrows = self.nrows
+        ncols = self.ncols
 
         y  = img
 
@@ -139,13 +179,11 @@ class CorrectImg():
 
         n = 100000.0
         y_log = n* (((y) ** (1/n)) - 1)
+        del y
 
         ## FOURIER TRANSFORM
         # Represent image in frequency domain
 
-        # Check size for dft optimization
-        nrows = cv2.getOptimalDFTSize(rows)
-        ncols = cv2.getOptimalDFTSize(cols)
 
         # Generate copy of image with optimized size
         nimg = np.zeros((nrows,ncols))
@@ -154,60 +192,52 @@ class CorrectImg():
         # Do the DFT itself
         y_fft= cv2.dft(np.float32(nimg),flags=cv2.DFT_COMPLEX_OUTPUT)
         y_fft_shift = np.fft.fftshift(y_fft)
+        del y_fft
 
         ## HIGH PASS FILTER
 
-        DX = cols/cutoff
-
-        F = []
-        n = 100000.0
-        F = [(-((i-nrows/2)**2+(j-ncols/2)**2)) for i in range (nrows) for j in range (ncols)]
-        H = np.asarray(F,dtype=np.float64)/(2.0*DX**2)
-        H = H/n
-        H = (1-(1+H)**n)
-        H = H*(rh-rl)
-        H = H +rl
-        H = np.reshape(H,(nrows,ncols))
-
         dft_complex = y_fft_shift[:,:,1] + y_fft_shift[:,:,0]*1j
-        result_filter = H * dft_complex
+        result_filter = self.H * dft_complex
+        del dft_complex
 
         ## INVERSE FOURIER TRANSFORM
 
         idft_flags = cv2.DFT_COMPLEX_OUTPUT| cv2.DFT_SCALE | cv2.DFT_REAL_OUTPUT
 
         result_split = np.ndarray(y_fft_shift.shape)
+        del y_fft_shift
         result_split[:,:,0] = result_filter.imag
         result_split[:,:,1] = result_filter.real
 
         result_interm = cv2.idft(np.fft.ifftshift(result_split),flags = idft_flags)
+        del result_split
 
         ## EXPONENTIAL OF IMAGE
         ## To revert the logarithm
         ## Sometimes high values appear, so we use clip to limit them
 
         result = np.exp(np.clip(result_interm,np.amin(result_interm),0))
+        del result_interm
         y = result[0:rows,0:cols]
+        del result
 
 
         y = np.uint8(y*255)
 
         median = cv2.medianBlur(y,5)
+        del y
 
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
         cl1 = clahe.apply(median)
+        del median
 
         return cl1
 
 
 
-
-
-
-
 if __name__ == '__main__':
     try:
-        rospy.init_node('img_rectify')#, log_level=rospy.DEBUG)
+        rospy.init_node('img_rectify', log_level=rospy.DEBUG)
         try:
             apply_mask = rospy.get_param('~mask')
         except:
