@@ -14,7 +14,7 @@ import time
 from skimage.restoration import (denoise_wavelet, estimate_sigma)
 
 class CorrectImg():
-    def __init__(self, apply_mask):
+    def __init__(self, apply_mask,imgtopic):
         # Create rov pose publisher of odometry values
         self.apply_mask = apply_mask
         self.y_array = []
@@ -22,13 +22,15 @@ class CorrectImg():
         self.nrows = 0
         self.ncols = 0
 
+        rospy.loginfo('Subscribing to %s topic', imgtopic)
+
         self.img_pub = rospy.Publisher('/BlueRov2/image_corrected',
                                        Image,
                                        queue_size=1)
         self.cam_info_sub = rospy.Subscriber('/BlueRov2/camera_info',
                                             CameraInfo,
                                             self.info_callback,queue_size=1)
-        image_sub = rospy.Subscriber('/BlueRov2/image' ,
+        image_sub = rospy.Subscriber(imgtopic ,
                                      Image,
                                      self.img_callback,queue_size=1)
         image_sub = rospy.Subscriber('/BlueRov2/image/compressed' ,
@@ -133,17 +135,22 @@ class CorrectImg():
 
 
     def correct(self, img):
-        map1, map2 = cv2.fisheye.initUndistortRectifyMap(self.K,
-                                                         self.D[-1],
-                                                         self.R,
-                                                         self.newcameramtx,
-                                                         (self.width,self.height),
-                                                         cv2.CV_16SC2)
-        undistorted_img = cv2.remap(img, map1, map2,
-                                    interpolation=cv2.INTER_LINEAR,
-                                    borderMode=cv2.BORDER_CONSTANT)
+        try:
+            map1, map2 = cv2.fisheye.initUndistortRectifyMap(self.K,
+                                                             self.D[-1],
+                                                             self.R,
+                                                             self.newcameramtx,
+                                                             (self.width,self.height),
+                                                             cv2.CV_16SC2)
+            undistorted_img = cv2.remap(img, map1, map2,
+                                        interpolation=cv2.INTER_LINEAR,
+                                        borderMode=cv2.BORDER_CONSTANT)
 
-        return undistorted_img
+            return undistorted_img
+        except Exception as e:
+            return img
+
+
 
     def circle_mask(self,img):
         mask = np.zeros(img.shape[:2], np.uint8)
@@ -243,8 +250,9 @@ if __name__ == '__main__':
         except:
             apply_mask = True
         rospy.logdebug('apply mask %s', apply_mask)
+        img_topic  = str(rospy.get_param("~uw_img_topic"))
         rate = rospy.Rate(1) # 1 Hz
-        ci = CorrectImg(apply_mask)
+        ci = CorrectImg(apply_mask,img_topic)
         rospy.spin()
 
     except rospy.ROSInterruptException:
