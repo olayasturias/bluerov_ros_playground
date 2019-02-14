@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+
+<launch>
+
+  <arg name="cam_file" default="$(find bluerov_ros_playground)/config/bluerov2_cam.yaml" />
+
+
+  <!-- publish camera info -->
+  <node respawn="true" pkg="bluerov_ros_playground" type="camera_info_pub.py" name="cam_info_pub">
+    <param name="cam_file"  value="$(arg cam_file)" />
+  </node>
+
+  <!-- publish corrected video -->
+  <!--node respawn="true" pkg="bluerov_ros_playground" type="rectify_video.py" name="rectify_video">
+  </node-->
+
+  <!-- publish bar30 measurement -->
+  <node respawn="true" pkg="bluerov_ros_playground" type="barometer.py" name="bar30_listener">
+  </node>
+
+</launch>

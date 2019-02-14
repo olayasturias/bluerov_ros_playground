@@ -12,6 +12,7 @@
   <arg name="config_yaml" value="$(find mavros)/launch/apm_config.yaml"/>
   <arg name="joy_dev" default="/dev/input/js0"/>
   <arg name="log_output" default="screen"/>
+  <arg name="cam_file" default="$(find bluerov_ros_playground)/config/bluerov2_cam.yaml" />
 
   <node pkg="mavros" type="mavros_node" name="mavros" required="true" clear_params="true" output="$(arg log_output)">
     <param name="fcu_url" value="$(arg fcu_url)"/>
@@ -39,12 +40,12 @@
 
   <!-- publish camera info -->
   <node respawn="true" pkg="bluerov_ros_playground" type="camera_info_pub.py" name="cam_info_pub">
-    <param name="cam_file" type="string" value="$(find bluerov_ros_playground)/config/bluerov2_cam.yaml" />
+    <param name="cam_file"  value="$(arg cam_file)" />
   </node>
 
   <!-- publish corrected video -->
-  <node respawn="true" pkg="bluerov_ros_playground" type="rectify_video.py" name="rectify_video">
-  </node>
+  <!--node respawn="true" pkg="bluerov_ros_playground" type="rectify_video.py" name="rectify_video">
+  </node-->
 
   <!-- publish bar30 measurement -->
   <node respawn="true" pkg="bluerov_ros_playground" type="barometer.py" name="bar30_listener">
