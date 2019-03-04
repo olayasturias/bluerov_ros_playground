@@ -180,8 +180,8 @@ class Code(object):
 
                 # Show video output
                 frame = self.cam.frame()
-                cv2.imshow('frame', frame)
-                cv2.waitKey(1)
+                # cv2.imshow('frame', frame)
+                # cv2.waitKey(1)
 		try:
 			self.image_pub.publish(self.bridge.cv2_to_imgmsg(frame, "bgr8"))
 		except CvBridgeError as e:

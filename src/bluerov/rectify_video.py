@@ -53,13 +53,13 @@ class CorrectImg():
 
         undistorted = self.correct(color_frame)
         del color_frame
-        small = cv2.resize(undistorted,(0,0), fx=0.75, fy=0.75)
-        del undistorted
+        #small = cv2.resize(undistorted,(0,0), fx=0.75, fy=0.75)
+        #del undistorted
 
 
-        img32  = np.float32(small)
+        img32  = np.float32(undistorted)
         img_norm = img32/255
-        del small
+        #del small
 
         yuv  = cv2.cvtColor(img_norm,cv2.COLOR_BGR2YUV)
         del img_norm
@@ -102,7 +102,8 @@ class CorrectImg():
         rospy.logwarn('time for homomorphic %s', ttaken)
         del y
         start = time.time()
-        masked = self.circle_mask(corrected)
+        #masked = self.circle_mask(corrected)
+        masked = corrected
         end = time.time()
         ttaken = (end-start)*1000
         rospy.logwarn('time for mask %s', ttaken)

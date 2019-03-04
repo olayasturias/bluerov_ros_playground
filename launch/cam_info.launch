@@ -3,6 +3,7 @@
 <launch>
 
   <arg name="cam_file" default="$(find bluerov_ros_playground)/config/bluerov2_cam.yaml" />
+  <arg name="uw_img_topic" default="/camera/image_raw" />
 
 
   <!-- publish camera info -->
@@ -11,8 +12,9 @@
   </node>
 
   <!-- publish corrected video -->
-  <!--node respawn="true" pkg="bluerov_ros_playground" type="rectify_video.py" name="rectify_video">
-  </node-->
+  <node respawn="true" pkg="bluerov_ros_playground" type="rectify_video.py" name="rectify_video">
+    <param name="uw_img_topic"  value="$(arg uw_img_topic)" />
+  </node>
 
   <!-- publish bar30 measurement -->
   <node respawn="true" pkg="bluerov_ros_playground" type="barometer.py" name="bar30_listener">
