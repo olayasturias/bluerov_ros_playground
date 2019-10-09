@@ -102,8 +102,8 @@ class CorrectImg():
         rospy.logwarn('time for homomorphic %s', ttaken)
         del y
         start = time.time()
-        #masked = self.circle_mask(corrected)
-        masked = corrected
+        masked = self.circle_mask(corrected)
+        #masked = corrected
         end = time.time()
         ttaken = (end-start)*1000
         rospy.logwarn('time for mask %s', ttaken)

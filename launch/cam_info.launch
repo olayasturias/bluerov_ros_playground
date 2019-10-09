@@ -17,7 +17,7 @@
   </node>
 
   <!-- publish bar30 measurement -->
-  <node respawn="true" pkg="bluerov_ros_playground" type="barometer.py" name="bar30_listener">
-  </node>
+
+
 
 </launch>

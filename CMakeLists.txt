@@ -198,6 +198,8 @@ install(DIRECTORY
 catkin_install_python(PROGRAMS
   src/bluerov/bin/user_mav
   src/bluerov/bin/video
+  src/bluerov/camera_info_pub.py
+  src/bluerov/barometer.py
   src/bluerov/gazebo_teleop.py
   src/bluerov/sitl.py
   src/bridge/bridge.py

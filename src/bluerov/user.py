@@ -54,11 +54,9 @@ class Code(object):
         self.sub.subscribe_topic('/mavros/battery', BatteryState)
         self.sub.subscribe_topic('/mavros/rc/in', RCIn)
         self.sub.subscribe_topic('/mavros/rc/out', RCOut)
-
-
         self.cam = None
+        self.bridge = CvBridge()
 
-    	self.bridge = CvBridge()
         self.image_pub = rospy.Publisher("BlueRov2/image",Image)
         try:
             video_udp_port = rospy.get_param("/user_node/video_udp_port")
@@ -156,7 +154,7 @@ class Code(object):
                     override.append(0)
                 override[5] = override[0]
 
-                print override
+                print (override)
                 # Send joystick data as rc output into rc override topic
                 # (fake radio controller)
                 self.pub.set_data('/mavros/rc/override', override)
@@ -180,15 +178,16 @@ class Code(object):
 
                 # Show video output
                 frame = self.cam.frame()
-                # cv2.imshow('frame', frame)
-                # cv2.waitKey(1)
-		try:
-			self.image_pub.publish(self.bridge.cv2_to_imgmsg(frame, "bgr8"))
-		except CvBridgeError as e:
-			print(e)
-
+                cv2.imshow('frame', frame)
+                cv2.waitKey(1)
             except Exception as error:
                 print('imshow error:', error)
+        try:
+            self.image_pub.publish(self.bridge.cv2_to_imgmsg(frame, "bgr8"))
+        except CvBridgeError as e:
+            print(e)
+
+
 
     def disarm(self):
         self.arm_service(False)
