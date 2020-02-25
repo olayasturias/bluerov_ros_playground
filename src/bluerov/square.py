@@ -23,6 +23,8 @@ from sensor_msgs.msg import BatteryState
 from mavros_msgs.msg import OverrideRCIn, RCIn, RCOut
 
 from mavros_msgs.srv import SetMode, SetModeRequest
+from scipy.spatial.transform import Rotation as R
+
 
 
 class Code(object):
@@ -40,7 +42,9 @@ class Code(object):
 
         # Do what is necessary to start the process
         # and to leave gloriously
-        self.arm()
+        rospy.wait_for_service('/mavros/cmd/arming')
+        self.arm_service = rospy.ServiceProxy('/mavros/cmd/arming', CommandBool)
+        self.disarm()
         self.is_armed = False
 
         self.sub = subs.Subs()
@@ -72,13 +76,13 @@ class Code(object):
     def arm(self):
         """ Arm the vehicle and trigger the disarm
         """
-        rospy.wait_for_service('/mavros/cmd/arming')
-
-        self.arm_service = rospy.ServiceProxy('/mavros/cmd/arming', CommandBool)
         self.arm_service(True)
 
         # Disarm is necessary when shutting down
         rospy.on_shutdown(self.disarm)
+
+    def disarm(self):
+            self.arm_service(False)
 
 
     @staticmethod
@@ -101,77 +105,76 @@ class Code(object):
             + 2003.55692021905
 
 
+    def reset(self):
+        rospy.loginfo('RESETING SQUARE ...')
+        # set all values to zero (1500 in rc terms) (just to be safe)
+        overridezero = [1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500]
+        self.pub.set_data('/mavros/rc/override', overridezero)
+        # disarm
+        self.disarm()
+        self.is_armed = False
+
+    def square_side(self, duration, quat_ini, rot):
+        """Class to draw one side of the square
+
+        Attributes:
+            duration (float): duration of the forward movement
+            quat_ini: initial angle
+            rot (float): rotation to make
+        """
+        # First, straight front during specified time
+        second_ini = rospy.get_time()
+        while (rospy.get_time() < second_ini + duration):
+            move_front = [1500, 1500, 1500, 1500, 1800, 1500, 1500, 1500]
+            self.pub.set_data('/mavros/rc/override', move_front)
+
+        # Then stop
+        stop = [1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500]
+        self.pub.set_data('/mavros/rc/override', stop)
+
+        # Then rotate 45 degrees
+        ang_ini = R.from_quat(quat_ini)
+        ang_ini_z = ang_ini.as_euler('zxy', degrees = True)[0]
+
+        while (not rospy.on_shutdown(self.disarm)):
+            current_orientation = self.sub.get_data()['/imu_pose']['orientation']
+            current_quat = R.from_quat(current_orientation)
+            current_z = current_quat.as_euler('zxy', degrees = True)[0]
+
+            if(current_z < ang_ini_z + rot):
+                rotate = [1500, 1500, 1500, 1500, 1500, 1200, 1500, 1500]
+                self.pub.set_data('/mavros/rc/override', move_front)
+            else:
+
+                stop = [1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500]
+                self.pub.set_data('/mavros/rc/override', stop)
+                break
+
+
+
+
+
+
+
     def run(self):
         """Run user code
         """
         while not rospy.is_shutdown():
             time.sleep(0.1)
-            # Try to get data
-            try:
-                rospy.loginfo(self.sub.get_data()['mavros']['battery']['voltage'])
-                rospy.loginfo(self.sub.get_data()['mavros']['rc']['in']['channels'])
-                rospy.loginfo(self.sub.get_data()['mavros']['rc']['out']['channels'])
-            except Exception as error:
-                print('Get data error:', error)
 
-            try:
-                # Get joystick data
-                joy = self.sub.get_data()['joy']['axes']
-                joy_buttons = self.sub.get_data()['joy']['buttons']
+            # Get orientation data from imu topic
+            orientation = self.sub.get_data()['imu_pose']['orientation']
+            # Get joystick data
+            joy = self.sub.get_data()['joy']['axes']
+            joy_buttons = self.sub.get_data()['joy']['buttons']
 
-                if joy_buttons[7] and not joy_buttons[6]:
-                    self.arm()
-                    self.is_armed = True
+            if joy_buttons[7] and not joy_buttons[6]:
+                self.arm()
+                self.is_armed = True
 
-                elif joy_buttons[6]:
-                    # set all values to zero (1500 in rc terms) (just to be safe)
-                    overridezero = [1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500]
-                    self.pub.set_data('/mavros/rc/override', overridezero)
-                    # disarm
-                    self.disarm()
-                    self.is_armed = False
+            elif joy_buttons[6]: # when pushing BACK button, reset square
+                self.reset()
 
-                elif joy_buttons[0]:
-                    rospy.wait_for_service('/mavros/set_mode')
-                    nav_mode = rospy.ServiceProxy('/mavros/set_mode', SetMode)
-                    if self.is_armed:
-                        resp_nav = nav_mode(SetModeRequest.MAV_MODE_MANUAL_ARMED,'')
-                    else:
-                        resp_nav = nav_mode(SetModeRequest.MAV_MODE_MANUAL_DISARMED,'')
-
-                elif joy_buttons[1]:
-                    rospy.wait_for_service('/mavros/set_mode')
-                    nav_mode = rospy.ServiceProxy('/mavros/set_mode', SetMode)
-                    if self.is_armed:
-                        resp_nav = nav_mode(SetModeRequest.MAV_MODE_STABILIZE_ARMED,'')
-                    else:
-                        resp_nav = nav_mode(SetModeRequest.MAV_MODE_STABILIZE_DISARMED,'')
-
-
-
-                # rc run between 1100 and 2000, a joy command is between -1.0 and 1.0
-                override = [int(val*400 + 1500) for val in joy]
-
-                for _ in range(len(override), 8):
-                    override.append(0)
-                override[5] = override[0]
-
-                # Send joystick data as rc output into rc override topic
-                # (fake radio controller)
-                self.pub.set_data('/mavros/rc/override', override)
-            except Exception as error:
-                print('joy error:', error)
-
-            try:
-                # Get pwm output and send it to Gazebo model
-                rc = self.sub.get_data()['mavros']['rc']['out']['channels']
-                joint = JointState()
-                joint.name = ["thr{}".format(u + 1) for u in range(5)]
-                joint.position = [self.pwm_to_thrust(pwm) for pwm in rc]
-
-                self.pub.set_data('/BlueRov2/body_command', joint)
-            except Exception as error:
-                print('rc error:', error)
 
             try:
                 if not self.cam.frame_available():
@@ -188,10 +191,6 @@ class Code(object):
         except CvBridgeError as e:
             print(e)
 
-
-
-    def disarm(self):
-        self.arm_service(False)
 
 
 if __name__ == "__main__":

@@ -91,6 +91,6 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except Exception, e:
+    except (Exception, e):
         import traceback
         traceback.print_exc()

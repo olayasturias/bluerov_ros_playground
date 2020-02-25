@@ -95,12 +95,12 @@ class CalibrationNode:
                 remapped = rospy.remap_name(svcname)
                 if remapped != svcname:
                     fullservicename = "%s/set_camera_info" % remapped
-                    print "Waiting for service", fullservicename, "..."
+                    print ("Waiting for service", fullservicename, "...")
                     try:
                         rospy.wait_for_service(fullservicename, 5)
-                        print "OK"
-                    except rospy.ROSException:
-                        print "Service not found"
+                        print ("OK")
+                    except (rospy.ROSException):
+                        print ("Service not found")
                         rospy.signal_shutdown('Quit')
 
         self._boards = boards
@@ -136,8 +136,8 @@ class CalibrationNode:
         drawable = self.c.handle_msg(msg)
         #print drawable.scrib.shape[1]
         self.displaywidth = drawable.scrib.shape[1]
-        print drawable
-        print drawable.scrib
+        print (drawable)
+        print( drawable.scrib)
         self.redraw_monocular(drawable)
 
     def check_set_camera_info(self, response):
@@ -145,19 +145,19 @@ class CalibrationNode:
             return True
 
         for i in range(10):
-            print "!" * 80
-        print
-        print "Attempt to set camera info failed: " + response.status_message
-        print
+            print ("!" * 80)
+
+        print ("Attempt to set camera info failed: " + response.status_message)
+
         for i in range(10):
-            print "!" * 80
-        print
+            print ("!" * 80)
+
         rospy.logerr('Unable to set camera info for calibration. Failure message: %s' % response.status_message)
         return False
 
     def do_upload(self):
         self.c.report()
-        print self.c.ost()
+        print (self.c.ost())
         info = self.c.as_message()
 
         rv = True
@@ -213,9 +213,9 @@ class OpenCVCalibrationNode(CalibrationNode):
 
     def button(self, dst, label, enable):
         #cv.Set(dst, (255, 255, 255))
-        print dst
+        print (dst)
         size = dst.shape
-        print size
+        print (size)
         if enable:
             color = [155, 155, 80]
         else:
@@ -226,8 +226,8 @@ class OpenCVCalibrationNode(CalibrationNode):
 
     def buttons(self, display):
         x = self.displaywidth
-        print x
-        print display
+        print (x)
+        print (display)
         # self.button(cv.GetSubRect(display, (x,180,100,100)), "CALIBRATE", self.c.goodenough)
         self.button(display[180:280][x:x+100], "CALIBRATE", self.c.goodenough)
         # self.button(cv.GetSubRect(display, (x,280,100,100)), "SAVE", self.c.calibrated)
@@ -248,7 +248,7 @@ class OpenCVCalibrationNode(CalibrationNode):
     def redraw_monocular(self, drawable):
         height,width,channels = drawable.scrib.shape
         display = np.array((max(480, height), width + 100,channels), np.uint8)
-        print display
+        print (display)
         #display = cv.CreateMat(max(480, height), width + 100, cv.CV_8UC3)
         np.zeros(display)
         # np.copy(drawable.scrib, cv.GetSubRect(display, (0,0,width,height)))
@@ -361,25 +361,25 @@ def main():
     num_ks = options.k_coefficients
     # Deprecated flags modify k_coefficients
     if options.rational_model:
-        print "Option --rational-model is deprecated"
+        print ("Option --rational-model is deprecated")
         num_ks = 6
     if options.fix_k6:
-        print "Option --fix-k6 is deprecated"
+        print ("Option --fix-k6 is deprecated")
         num_ks = min(num_ks, 5)
     if options.fix_k5:
-        print "Option --fix-k5 is deprecated"
+        print ("Option --fix-k5 is deprecated")
         num_ks = min(num_ks, 4)
     if options.fix_k4:
-        print "Option --fix-k4 is deprecated"
+        print ("Option --fix-k4 is deprecated")
         num_ks = min(num_ks, 3)
     if options.fix_k3:
-        print "Option --fix-k3 is deprecated"
+        print ("Option --fix-k3 is deprecated")
         num_ks = min(num_ks, 2)
     if options.fix_k2:
-        print "Option --fix-k2 is deprecated"
+        print ("Option --fix-k2 is deprecated")
         num_ks = min(num_ks, 1)
     if options.fix_k1:
-        print "Option --fix-k1 is deprecated"
+        print ("Option --fix-k1 is deprecated")
         num_ks = 0
 
     calib_flags = 0
@@ -411,6 +411,6 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except Exception, e:
+    except (Exception, e):
         import traceback
         traceback.print_exc()

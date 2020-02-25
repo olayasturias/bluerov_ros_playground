@@ -185,6 +185,7 @@ install(FILES
   launch/mav_pluginlists.yaml
   launch/user_mav.launch
   launch/video.launch
+  launch/square.launch
   launch/bluerov2_node.launch
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
 )
@@ -199,6 +200,10 @@ catkin_install_python(PROGRAMS
   src/bluerov/bin/user_mav
   src/bluerov/bin/video
   src/bluerov/camera_info_pub.py
+  src/bluerov/square.py
+  src/bluerov/subs.py
+  src/bluerov/video.py
+  src/bluerov/pubs.py
   src/bluerov/barometer.py
   src/bluerov/gazebo_teleop.py
   src/bluerov/sitl.py

@@ -20,7 +20,7 @@ from mavros_msgs.srv import CommandBool
 from sensor_msgs.msg import JointState, Joy
 
 from sensor_msgs.msg import BatteryState
-from mavros_msgs.msg import OverrideRCIn, RCIn, RCOut
+from mavros_msgs.msg import OverrideRCIn, RCIn, RCOut, ManualControl
 
 from mavros_msgs.srv import SetMode, SetModeRequest
 
@@ -40,7 +40,11 @@ class Code(object):
 
         # Do what is necessary to start the process
         # and to leave gloriously
-        self.arm()
+
+        rospy.wait_for_service('/mavros/cmd/arming')
+        self.arm_service = rospy.ServiceProxy('/mavros/cmd/arming', CommandBool)
+        self.disarm()
+
         self.is_armed = False
 
         self.sub = subs.Subs()
@@ -49,6 +53,7 @@ class Code(object):
         self.pub.subscribe_topic('/mavros/rc/override', OverrideRCIn)
         self.pub.subscribe_topic('/mavros/setpoint_velocity/cmd_vel', TwistStamped)
         self.pub.subscribe_topic('/BlueRov2/body_command', JointState)
+        self.pub.subscribe_topic('/mavros/manual_control/send', ManualControl)
 
         self.sub.subscribe_topic('/joy', Joy)
         self.sub.subscribe_topic('/mavros/battery', BatteryState)
@@ -70,13 +75,13 @@ class Code(object):
     def arm(self):
         """ Arm the vehicle and trigger the disarm
         """
-        rospy.wait_for_service('/mavros/cmd/arming')
-
-        self.arm_service = rospy.ServiceProxy('/mavros/cmd/arming', CommandBool)
         self.arm_service(True)
 
         # Disarm is necessary when shutting down
         rospy.on_shutdown(self.disarm)
+
+    def disarm(self):
+        self.arm_service(False)
 
 
     @staticmethod
@@ -105,12 +110,12 @@ class Code(object):
         while not rospy.is_shutdown():
             time.sleep(0.1)
             # Try to get data
-            try:
-                rospy.loginfo(self.sub.get_data()['mavros']['battery']['voltage'])
-                rospy.loginfo(self.sub.get_data()['mavros']['rc']['in']['channels'])
-                rospy.loginfo(self.sub.get_data()['mavros']['rc']['out']['channels'])
-            except Exception as error:
-                print('Get data error:', error)
+            # try:
+            #     rospy.loginfo(self.sub.get_data()['mavros']['battery']['voltage'])
+            #     rospy.loginfo(self.sub.get_data()['mavros']['rc']['in']['channels'])
+            #     rospy.loginfo(self.sub.get_data()['mavros']['rc']['out']['channels'])
+            # except Exception as error:
+            #     print('Get data error:', error)
 
             try:
                 # Get joystick data
@@ -129,7 +134,57 @@ class Code(object):
                     self.disarm()
                     self.is_armed = False
 
-                elif joy_buttons[0]:
+                elif joy_buttons[0] == 1: # Gain decrease
+                    button_gain_decrease = ManualControl()
+                    rospy.loginfo('GAIN DECREASE')
+                    # https://mavlink.io/en/messages/common.html#MANUAL_CONTROL
+                    # Warning: Because of some legacy workaround, z will work between [0-1000]
+                    # where 0 is full reverse, 500 is no output and 1000 is full throttle.
+                    # x,y and r will be between [-1000 and 1000].
+                    # joy command is between -1.0 and 1.0
+                    button_gain_decrease.x = 0
+                    button_gain_decrease.y = 0
+                    button_gain_decrease.z = 500
+                    button_gain_decrease.r = 0
+                    button_gain_decrease.buttons = 1 << 9 #11th button
+                    self.pub.set_data('/mavros/manual_control/send', button_gain_decrease)
+                    button_gain_decrease.buttons = 0
+
+                elif joy_buttons[3] == 1: # gain increase
+                    button_gain_increase = ManualControl()
+                    rospy.loginfo('GAIN INCREASE')
+                    button_gain_increase.x = 0
+                    button_gain_increase.y = 0
+                    button_gain_increase.z = 500
+                    button_gain_increase.r = 0
+                    button_gain_increase.buttons = 1 << 10
+                    self.pub.set_data('/mavros/manual_control/send', button_gain_increase)
+                    button_gain_increase.buttons = 0
+
+                elif joy_buttons[2] == 1: # lights dimmer
+                    rospy.loginfo('Lights dimmer')
+                    dimmer = ManualControl()
+                    dimmer.x = 0
+                    dimmer.y = 0
+                    dimmer.z = 500
+                    dimmer.r = 0
+                    dimmer.buttons = 1 << 13
+                    self.pub.set_data('/mavros/manual_control/send', dimmer)
+                    dimmer.buttons = 0
+
+                elif joy_buttons[1] == 1: # lights brighter
+                    rospy.loginfo('Lights brighter')
+                    brighter = ManualControl()
+                    brighter.x = 0
+                    brighter.y = 0
+                    brighter.z = 500
+                    brighter.r = 0
+                    brighter.buttons = 1 << 14
+                    self.pub.set_data('/mavros/manual_control/send', brighter)
+                    brighter.buttons = 0
+
+
+                elif joy_buttons[4]:
                     rospy.wait_for_service('/mavros/set_mode')
                     nav_mode = rospy.ServiceProxy('/mavros/set_mode', SetMode)
                     if self.is_armed:
@@ -137,7 +192,7 @@ class Code(object):
                     else:
                         resp_nav = nav_mode(SetModeRequest.MAV_MODE_MANUAL_DISARMED,'')
 
-                elif joy_buttons[1]:
+                elif joy_buttons[5]:
                     rospy.wait_for_service('/mavros/set_mode')
                     nav_mode = rospy.ServiceProxy('/mavros/set_mode', SetMode)
                     if self.is_armed:
@@ -154,9 +209,8 @@ class Code(object):
                     override.append(0)
                 override[5] = override[0]
 
-                print (override)
                 # Send joystick data as rc output into rc override topic
-                # (fake radio controller)
+                override[3] = 1500 # otherwise it starts spinning like crazy
                 self.pub.set_data('/mavros/rc/override', override)
             except Exception as error:
                 print('joy error:', error)
@@ -189,8 +243,6 @@ class Code(object):
 
 
 
-    def disarm(self):
-        self.arm_service(False)
 
 
 if __name__ == "__main__":

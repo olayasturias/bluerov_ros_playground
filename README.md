@@ -29,16 +29,16 @@ What is possible ?
  1. Go to your ROS package source directory:
     - `$ cd ros_workspace_path/src`
  2. Clone this project.
-    - `$ git clone https://github.com/patrickelectric/bluerov_ros_playground`
+    - `$ git clone https://github.com/olayasturias/bluerov_ros_playground`
  3. Go back to your ROS workspace:
     - `$ cd ../`
  4. Build and install it:
-    - `$ catkin_make --pkg bluerov_ros_playground`
+    - `$ catkin build --pkg bluerov_ros_playground`
     - if using ROS from source:
         - `$./src/catkin/bin/catkin_make_isolated --install -DCMAKE_BUILD_TYPE=Release --pkg bluerov_ros_playground`
  5. Reload your ROS env.
-    - bash: `$ source devel/setup.sh`
-    - zsh: `$ source devel/setup.sh`
+    - bash: `$ source install/setup.sh`
+    - zsh: `$ source install/setup.sh`
 
 ## Running ##
 
@@ -72,12 +72,12 @@ What is possible ?
     - Directional pad:
       - Up/Down: move the camera servo Up and Down.
       - Left/Right: TBD
-    - A button: set Manual control.
-    - B button: set Stabilize control.
-    - Y button: TBD.
-    - X button: TBD.
-    - Left bumper: TBD.
-    - Right bumper: TBD.
+    - A button: Gain decrease.
+    - B button: Lights brighter.
+    - Y button: Gain increase.
+    - X button: Lights dimmer.
+    - Left bumper: set Manual Control.
+    - Right bumper: set Stabilize Control.
     - Left trigger: TBD.
     - Right trigger: TBD.
 
