@@ -2,9 +2,11 @@
 
 <launch>
 
+  <!-- BlueROV model launchs -->
+
   <arg name="model" default="$(find bluerov_ros_playground)/model/BlueRov2.urdf.xacro"/>
-  <arg name="rvizconfig" default="$(find bluerov_ros_playground)/model/model.rviz" />
-  
+  <arg name="rvizconfig" default="$(find bluerov_ros_playground)/model/gps.rviz" />
+
   <node name="rviz" pkg="rviz" type="rviz" required="true"  args="-d $(arg rvizconfig)"/>
 
   <param name="robot_description" command="$(find xacro)/xacro.py --inorder $(arg model)"/>
@@ -13,6 +15,11 @@
     <param name="publish_frequency" type="double" value="10.0" />
   </node>
 
+  <!-- GPS map resources-->
+
+  <!-- Send a static GPS fix to every new subscriber. Edit latitude and longitude in launch/demo.gps to use your own position. -->
+  <node pkg="rostopic" type="rostopic" name="fake_gps_fix"
+  args="pub /gps/fix sensor_msgs/NavSatFix --latch --file=$(find rviz_satellite)/launch/demo.gps" />
+
+
 </launch>
-
-

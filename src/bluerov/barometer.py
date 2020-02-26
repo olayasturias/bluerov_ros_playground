@@ -9,7 +9,8 @@ from sensor_msgs.msg import FluidPressure
 from struct import pack, unpack
 import tf2_ros
 from geometry_msgs.msg import TransformStamped, Pose
-
+from sensor_msgs.msg import Imu
+from pyquaternion import Quaternion
 
 
 
@@ -17,6 +18,7 @@ class ROVPose(object):
     def __init__(self, atm_pressure, water_density):
         rospy.loginfo('holi')
         rospy.Subscriber("/mavlink/from", Mavlink, self.bar30callback, queue_size = 1)
+        rospy.Subscriber('/mavros/imu/data', Imu, self.imu_callback)
         self.prespub = rospy.Publisher('/bar30/pressure',FluidPressure,queue_size = 1)
         self.pose_sub = rospy.Subscriber('/imu_pose', Pose,
                                         self.posecallback, queue_size = 1)
@@ -42,14 +44,47 @@ class ROVPose(object):
             self.abs_pressure = press_abs*100 # convert hPa to Pa
             self.prespub.publish(fp)
 
+    def imu_callback(self, data):
+        # Read imu Data
+        r = Quaternion(data.orientation.w, data.orientation.x,
+                       data.orientation.y, data.orientation.z)
+        # Define 180 degs rotation around y
+        qy = Quaternion(axis=[0, 1, 0], angle=3.14159265)
+        # Define 90 deg rotation around z
+        qz = Quaternion(axis=[0, 0, 1], angle=3.14159265/2)
+        # total rotations (order is important)
+        qtot = qy * qz
+        ry = qtot.rotate(r) # rotate r 
+        ry = ry.normalised
+
+
+
+        # Broadcast to tf
+        tf_pub = tf2_ros.TransformBroadcaster()
+        t = TransformStamped()
+
+        t.header.frame_id = "map"
+        t.child_frame_id = "base_link"
+
+        t.transform.rotation.x = ry[1]
+        t.transform.rotation.y = ry[2]
+        t.transform.rotation.z = ry[3]
+        t.transform.rotation.w = ry[0]
+
+        pressure_to_meters = (self.abs_pressure - self.atm_pressure)
+        pressure_to_meters = pressure_to_meters / (self.water_density * 9.85)
+        t.transform.translation.z = pressure_to_meters
+
+        tf_pub.sendTransform(t)
+
     def posecallback(self, data):
         tf_pub = tf2_ros.TransformBroadcaster()
         t = TransformStamped()
 
-        t.header.frame_id = "world"
+        t.header.frame_id = "map"
         t.child_frame_id = "base_link"
 
-        #t.transform.translation = data.position
+        t.transform.translation = data.position
         t.transform.rotation = data.orientation
 
         pressure_to_meters = (self.abs_pressure - self.atm_pressure)

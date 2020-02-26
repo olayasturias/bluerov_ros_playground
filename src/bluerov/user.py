@@ -62,7 +62,7 @@ class Code(object):
         self.cam = None
         self.bridge = CvBridge()
 
-        self.image_pub = rospy.Publisher("BlueRov2/image",Image)
+        self.image_pub = rospy.Publisher("BlueRov2/image",Image, queue_size = 5)
         try:
             video_udp_port = rospy.get_param("/user_node/video_udp_port")
             rospy.loginfo("video_udp_port: {}".format(video_udp_port))
@@ -173,6 +173,7 @@ class Code(object):
                     dimmer.buttons = 1 << 13
                     self.pub.set_data('/mavros/manual_control/send', dimmer)
                     dimmer.buttons = 0
+                    self.pub.set_data('/mavros/manual_control/send', dimmer)
 
                 elif joy_buttons[1] == 1: # lights brighter
                     rospy.loginfo('Lights brighter')
@@ -184,6 +185,7 @@ class Code(object):
                     brighter.buttons = 1 << 14
                     self.pub.set_data('/mavros/manual_control/send', brighter)
                     brighter.buttons = 0
+                    self.pub.set_data('/mavros/manual_control/send', brighter)
 
 
                 elif joy_buttons[4]:
@@ -234,14 +236,15 @@ class Code(object):
 
                 # Show video output
                 frame = self.cam.frame()
-                cv2.imshow('frame', frame)
-                cv2.waitKey(1)
+                # cv2.imshow('frame', frame)
+                # cv2.waitKey(1)
             except Exception as error:
                 print('imshow error:', error)
-        try:
-            self.image_pub.publish(self.bridge.cv2_to_imgmsg(frame, "bgr8"))
-        except CvBridgeError as e:
-            print(e)
+
+            try:
+                self.image_pub.publish(self.bridge.cv2_to_imgmsg(frame, "bgr8"))
+            except CvBridgeError as e:
+                print(e)
 
 
 

@@ -51,6 +51,13 @@
   </node-->
 
   <!-- publish bar30 measurement -->
+  <node respawn="true" pkg="bluerov_ros_playground" type="barometer.py"
+    name="bar30_listener" output = "screen">
+    <param name="atm_pressure" value="$(arg atm_pressure)"/>
+    <param name="water_density" value="$(arg water_density)"/>
+  </node>
+
+  <include file="$(find bluerov_ros_playground)/launch/rviz.launch" />
 
 
 </launch>
