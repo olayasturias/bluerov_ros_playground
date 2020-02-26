@@ -149,6 +149,7 @@ class Code(object):
                     button_gain_decrease.buttons = 1 << 9 #11th button
                     self.pub.set_data('/mavros/manual_control/send', button_gain_decrease)
                     button_gain_decrease.buttons = 0
+                    self.pub.set_data('/mavros/manual_control/send', button_gain_decrease)
 
                 elif joy_buttons[3] == 1: # gain increase
                     button_gain_increase = ManualControl()
@@ -160,6 +161,7 @@ class Code(object):
                     button_gain_increase.buttons = 1 << 10
                     self.pub.set_data('/mavros/manual_control/send', button_gain_increase)
                     button_gain_increase.buttons = 0
+                    self.pub.set_data('/mavros/manual_control/send', button_gain_increase)
 
                 elif joy_buttons[2] == 1: # lights dimmer
                     rospy.loginfo('Lights dimmer')

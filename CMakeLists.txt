@@ -187,6 +187,7 @@ install(FILES
   launch/video.launch
   launch/square.launch
   launch/bluerov2_node.launch
+  launch/baro.launch
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
 )
 
