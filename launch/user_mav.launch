@@ -13,7 +13,7 @@
   <arg name="joy_dev" default="/dev/input/js0"/>
   <arg name="log_output" default="screen"/>
   <arg name="cam_file" default="$(find bluerov_ros_playground)/config/bluerov2_cam.yaml" />
-  <arg name="atm_pressure" default="101325.0" />
+  <arg name="atm_pressure" default="103000.0" />
   <arg name="water_density" default="1027.0" />
 
   <node pkg="mavros" type="mavros_node" name="mavros" required="true" clear_params="true" output="$(arg log_output)">
@@ -32,7 +32,7 @@
   <!-- start the joystick driver -->
   <node respawn="true" pkg="joy" type="joy_node" name="joy_node">
     <param name="dev" type="string" value="$(arg joy_dev)" />
-    <param name="deadzone" type="double" value="0.8" />
+    <param name="deadzone" type="double" value="0.9" />
   </node>
 
   <node pkg="rosservice" type="rosservice" name="mavros_set_stream" args="call --wait /mavros/set_stream_rate 0 10 1"/>

@@ -204,17 +204,23 @@ class Code(object):
                     else:
                         resp_nav = nav_mode(SetModeRequest.MAV_MODE_STABILIZE_DISARMED,'')
 
-
+                # canal 0 1100 cambiar por 1900
+                # izq 1 dcha -1
+                # izq 1900 dcha 1100 tiene que ser al reves
+                # canal 3 rotar lo mismo, cambiar
 
                 # rc run between 1100 and 2000, a joy command is between -1.0 and 1.0
                 override = [int(val*400 + 1500) for val in joy]
+
+                override[0] = int(joy[0]*(-400)+1500)
+                override[3] = int(joy[3]*(-400)+1500)
 
                 for _ in range(len(override), 8):
                     override.append(0)
                 override[5] = override[0]
 
                 # Send joystick data as rc output into rc override topic
-                override[3] = 1500 # otherwise it starts spinning like crazy
+                override[2] = 1500 # otherwise it starts spinning like crazy
                 self.pub.set_data('/mavros/rc/override', override)
             except Exception as error:
                 print('joy error:', error)
