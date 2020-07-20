@@ -210,14 +210,20 @@ class Code(object):
                 # canal 3 rotar lo mismo, cambiar
 
                 # rc run between 1100 and 2000, a joy command is between -1.0 and 1.0
-                override = [int(val*400 + 1500) for val in joy]
+                joy =  [int(val*(-1)) for val in joy] # change sign of RC
+                rcread = [int(val*400 + 1500) for val in joy]
+                override = [0,0,0,0,0,0,0,0]
+                override[0] = rcread[2]
+                override[1] = rcread[3]
+                override[3] = rcread[0]
+                override[4] = rcread[1]
 
-                override[0] = int(joy[0]*(-400)+1500)
-                override[3] = int(joy[3]*(-400)+1500)
+                #override[0] = int(joy[0]*(-400)+1500)
+                #override[3] = int(joy[3]*(-400)+1500)
 
                 for _ in range(len(override), 8):
                     override.append(0)
-                override[5] = override[0]
+                #override[5] = override[0]
 
                 # Send joystick data as rc output into rc override topic
                 override[2] = 1500 # otherwise it starts spinning like crazy
