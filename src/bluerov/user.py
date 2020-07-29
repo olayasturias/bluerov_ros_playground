@@ -211,12 +211,27 @@ class Code(object):
 
                 # rc run between 1100 and 2000, a joy command is between -1.0 and 1.0
                 joy =  [int(val*(-1)) for val in joy] # change sign of RC
-                rcread = [int(val*400 + 1500) for val in joy]
-                override = [0,0,0,0,0,0,0,0]
-                override[0] = rcread[2]
-                override[1] = rcread[3]
-                override[3] = rcread[0]
-                override[4] = rcread[1]
+                rcread = [int(val*400 + 1500) for val in joy] # give RC value to joy
+                # give names to axis
+                axisHR = rcread[0]
+                axisVR = rcread[1]
+                avisVL = rcread[2]
+                avisHL = rcread[3]
+                VRA    = rcread[4]
+                VRB    = rcread[5]
+
+                override = [1500,1500,1500,1500,1500,1500,1500,1500]
+
+                override[0] = avisVL
+                override[1] = avisHL
+                override[3] = axisHR
+                override[4] = axisVR
+
+                override[5] = VRA
+                override[6] = VRB
+                override[7] = VRB
+
+
 
                 #override[0] = int(joy[0]*(-400)+1500)
                 #override[3] = int(joy[3]*(-400)+1500)
