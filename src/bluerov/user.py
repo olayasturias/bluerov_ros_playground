@@ -210,7 +210,7 @@ class Code(object):
                 # canal 3 rotar lo mismo, cambiar
 
                 # rc run between 1100 and 2000, a joy command is between -1.0 and 1.0
-                joy =  [int(val*(-1)) for val in joy] # change sign of RC
+                joy =  [val*(-1) for val in joy] # change sign of RC
                 rcread = [int(val*400 + 1500) for val in joy] # give RC value to joy
                 # give names to axis
                 axisHR = rcread[0]
