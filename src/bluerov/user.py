@@ -214,9 +214,9 @@ class Code(object):
                 rcread = [int(val*400 + 1500) for val in joy] # give RC value to joy
                 # give names to axis
                 axisHR = rcread[0]
-                axisVR = rcread[1]
-                avisVL = rcread[2]
-                avisHL = rcread[3]
+                axisVR = rcread[1] 
+                avisVL = rcread[3]
+                avisHL = rcread[2]
                 VRA    = rcread[4]
                 VRB    = rcread[5]
 
