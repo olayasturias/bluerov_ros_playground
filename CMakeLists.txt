@@ -205,6 +205,7 @@ catkin_install_python(PROGRAMS
   src/bluerov/subs.py
   src/bluerov/video.py
   src/bluerov/pubs.py
+  src/bluerov/joysticks.py
   src/bluerov/barometer.py
   src/bluerov/gazebo_teleop.py
   src/bluerov/sitl.py

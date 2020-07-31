@@ -24,6 +24,8 @@ from mavros_msgs.msg import OverrideRCIn, RCIn, RCOut, ManualControl
 
 from mavros_msgs.srv import SetMode, SetModeRequest
 
+from joysticks import joystick, axis
+
 
 class Code(object):
 
@@ -210,35 +212,24 @@ class Code(object):
                 # canal 3 rotar lo mismo, cambiar
 
                 # rc run between 1100 and 2000, a joy command is between -1.0 and 1.0
-                joy =  [val*(-1) for val in joy] # change sign of RC
-                rcread = [int(val*400 + 1500) for val in joy] # give RC value to joy
-                # give names to axis
-                axisHR = rcread[0]
-                axisVR = rcread[1] 
-                avisVL = rcread[3]
-                avisHL = rcread[2]
-                VRA    = rcread[4]
-                VRB    = rcread[5]
-
+                rcread = [int(val*(-400) + 1500) for val in joy] # give RC value to joy
                 override = [1500,1500,1500,1500,1500,1500,1500,1500]
 
-                override[0] = avisVL
-                override[1] = avisHL
-                override[3] = axisHR
-                override[4] = axisVR
+                # assign values
+                override[axis['updown']] = rcread[joystick['FSi6']['axis']['VL']]
+                override[axis['roty']]   = rcread[joystick['FSi6']['axis']['HL']]
+                override[axis['rotz']]   = rcread[joystick['FSi6']['axis']['HR']]
+                override[axis['for-backwards']] =  rcread[joystick['FSi6']['axis']['VR']]
 
-                override[5] = VRA
-                override[6] = VRB
-                override[7] = VRB
+                override[axis['unknown']]= rcread[joystick['FSi6']['axis']['VRA']]
+                override[axis['cam']]    = rcread[joystick['FSi6']['axis']['VRB']]
+                override[axis['cam']+1]  = rcread[joystick['FSi6']['axis']['VRB']]
 
 
 
-                #override[0] = int(joy[0]*(-400)+1500)
-                #override[3] = int(joy[3]*(-400)+1500)
 
                 for _ in range(len(override), 8):
                     override.append(0)
-                #override[5] = override[0]
 
                 # Send joystick data as rc output into rc override topic
                 override[2] = 1500 # otherwise it starts spinning like crazy
