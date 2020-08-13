@@ -124,11 +124,15 @@ class Code(object):
                 joy = self.sub.get_data()['joy']['axes']
                 joy_buttons = self.sub.get_data()['joy']['buttons']
 
-                if joy_buttons[7] and not joy_buttons[6]:
+                # rc run between 1100 and 2000, a joy command is between -1.0 and 1.0
+                rcread = [int(val*(-400) + 1500) for val in joy] # give RC value to joy
+                override = [1500,1500,1500,1500,1500,1500,1500,1500]
+
+                if joy_buttons[joystick['FSi6']['buttons']['SWA_down']] and not joy_buttons[joystick['FSi6']['buttons']['SWA_up']]: # Arm
                     self.arm()
                     self.is_armed = True
 
-                elif joy_buttons[6]:
+                elif joy_buttons[joystick['FSi6']['buttons']['SWA_up']] and not joy_buttons[joystick['FSi6']['buttons']['SWA_down']]: # Disarm
                     # set all values to zero (1500 in rc terms) (just to be safe)
                     overridezero = [1500, 1500, 1500, 1500, 1500, 1500, 1500, 1500]
                     self.pub.set_data('/mavros/rc/override', overridezero)
@@ -136,58 +140,73 @@ class Code(object):
                     self.disarm()
                     self.is_armed = False
 
-                elif joy_buttons[0] == 1: # Gain decrease
-                    button_gain_decrease = ManualControl()
-                    rospy.loginfo('GAIN DECREASE')
+                if joy_buttons[joystick['FSi6']['buttons']['SWB_down']]:
+                    # SWB down selects the GAIN mode for the VRA axis.
+                    # That is, with the SWB down, moving the VRA will change the
+                    # gain (increase or decrease) accordingly.
+
+                    # Define manual control msg
+                    manual_control_msg = ManualControl()
                     # https://mavlink.io/en/messages/common.html#MANUAL_CONTROL
                     # Warning: Because of some legacy workaround, z will work between [0-1000]
                     # where 0 is full reverse, 500 is no output and 1000 is full throttle.
                     # x,y and r will be between [-1000 and 1000].
                     # joy command is between -1.0 and 1.0
-                    button_gain_decrease.x = 0
-                    button_gain_decrease.y = 0
-                    button_gain_decrease.z = 500
-                    button_gain_decrease.r = 0
-                    button_gain_decrease.buttons = 1 << 9 #11th button
-                    self.pub.set_data('/mavros/manual_control/send', button_gain_decrease)
-                    button_gain_decrease.buttons = 0
-                    self.pub.set_data('/mavros/manual_control/send', button_gain_decrease)
 
-                elif joy_buttons[3] == 1: # gain increase
-                    button_gain_increase = ManualControl()
-                    rospy.loginfo('GAIN INCREASE')
-                    button_gain_increase.x = 0
-                    button_gain_increase.y = 0
-                    button_gain_increase.z = 500
-                    button_gain_increase.r = 0
-                    button_gain_increase.buttons = 1 << 10
-                    self.pub.set_data('/mavros/manual_control/send', button_gain_increase)
-                    button_gain_increase.buttons = 0
-                    self.pub.set_data('/mavros/manual_control/send', button_gain_increase)
+                    # set all unnecessary parameters to a neutral value
+                    manual_control_msg.x = 0
+                    manual_control_msg.y = 0
+                    manual_control_msg.z = 500
+                    manual_control_msg.r = 0
 
-                elif joy_buttons[2] == 1: # lights dimmer
-                    rospy.loginfo('Lights dimmer')
-                    dimmer = ManualControl()
-                    dimmer.x = 0
-                    dimmer.y = 0
-                    dimmer.z = 500
-                    dimmer.r = 0
-                    dimmer.buttons = 1 << 13
-                    self.pub.set_data('/mavros/manual_control/send', dimmer)
-                    dimmer.buttons = 0
-                    self.pub.set_data('/mavros/manual_control/send', dimmer)
+                    if joy[joystick['FSi6']['axis']['VRA']] < 0: # Gain decrease
 
-                elif joy_buttons[1] == 1: # lights brighter
-                    rospy.loginfo('Lights brighter')
-                    brighter = ManualControl()
-                    brighter.x = 0
-                    brighter.y = 0
-                    brighter.z = 500
-                    brighter.r = 0
-                    brighter.buttons = 1 << 14
-                    self.pub.set_data('/mavros/manual_control/send', brighter)
-                    brighter.buttons = 0
-                    self.pub.set_data('/mavros/manual_control/send', brighter)
+                        rospy.loginfo('GAIN DECREASE')
+
+                        manual_control_msg.buttons = 1 << 9 #11th button
+                        self.pub.set_data('/mavros/manual_control/send', manual_control_msg)
+                        manual_control_msg.buttons = 0
+                        self.pub.set_data('/mavros/manual_control/send', manual_control_msg)
+
+                    if joy[joystick['FSi6']['axis']['VRA']] > 0: # gain increase
+                        rospy.loginfo('GAIN INCREASE')
+                        manual_control_msg.buttons = 1 << 10
+                        self.pub.set_data('/mavros/manual_control/send', manual_control_msg)
+                        manual_control_msg.buttons = 0
+                        self.pub.set_data('/mavros/manual_control/send', manual_control_msg)
+
+                if joy_buttons[joystick['FSi6']['buttons']['SWB_up']]:
+                    # SWB down selects the LIGHT mode for the VRA axis.
+                    # That is, with the SWB down, moving the VRA will change the
+                    # light (brighter or dimmer) accordingly.
+
+                    # Define manual control msg
+                    manual_control_msg = ManualControl()
+                    # https://mavlink.io/en/messages/common.html#MANUAL_CONTROL
+                    # Warning: Because of some legacy workaround, z will work between [0-1000]
+                    # where 0 is full reverse, 500 is no output and 1000 is full throttle.
+                    # x,y and r will be between [-1000 and 1000].
+                    # joy command is between -1.0 and 1.0
+
+                    # set all unnecessary parameters to a neutral value
+                    manual_control_msg.x = 0
+                    manual_control_msg.y = 0
+                    manual_control_msg.z = 500
+                    manual_control_msg.r = 0
+                    if joy[joystick['FSi6']['axis']['VRA']] < 0: # lights manual_control_msg
+                        rospy.loginfo('Lights dimmer')
+
+                        manual_control_msg.buttons = 1 << 13
+                        self.pub.set_data('/mavros/manual_control/send', manual_control_msg)
+                        manual_control_msg.buttons = 0
+                        self.pub.set_data('/mavros/manual_control/send', manual_control_msg)
+
+                    elif joy[joystick['FSi6']['axis']['VRA']] > 0: # lights brighter
+                        rospy.loginfo('Lights brighter')
+                        manual_control_msg.buttons = 1 << 14
+                        self.pub.set_data('/mavros/manual_control/send', manual_control_msg)
+                        manual_control_msg.buttons = 0
+                        self.pub.set_data('/mavros/manual_control/send', manual_control_msg)
 
 
                 elif joy_buttons[4]:
@@ -206,14 +225,7 @@ class Code(object):
                     else:
                         resp_nav = nav_mode(SetModeRequest.MAV_MODE_STABILIZE_DISARMED,'')
 
-                # canal 0 1100 cambiar por 1900
-                # izq 1 dcha -1
-                # izq 1900 dcha 1100 tiene que ser al reves
-                # canal 3 rotar lo mismo, cambiar
 
-                # rc run between 1100 and 2000, a joy command is between -1.0 and 1.0
-                rcread = [int(val*(-400) + 1500) for val in joy] # give RC value to joy
-                override = [1500,1500,1500,1500,1500,1500,1500,1500]
 
                 # assign values
                 override[axis['updown']] = rcread[joystick['FSi6']['axis']['VL']]
@@ -270,7 +282,7 @@ class Code(object):
 
 if __name__ == "__main__":
     try:
-        rospy.init_node('user_node', log_level=rospy.DEBUG)
+        rospy.init_node('user_node', log_level=rospy.INFO)
     except rospy.ROSInterruptException as error:
         print('pubs error with ROS: ', error)
         exit(1)

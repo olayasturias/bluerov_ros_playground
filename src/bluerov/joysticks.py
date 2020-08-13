@@ -29,7 +29,7 @@ FSi6 = {
         "VL" : 3,
         "VRA": 4,
         "VRB": 5
-    }
+    },
 
     "buttons" : {
         "SWA_down"   : 0,
