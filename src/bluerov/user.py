@@ -209,21 +209,29 @@ class Code(object):
                         self.pub.set_data('/mavros/manual_control/send', manual_control_msg)
 
 
-                elif joy_buttons[4]:
+                if joy_buttons[joystick['FSi6']['buttons']['SWC_up']]:
                     rospy.wait_for_service('/mavros/set_mode')
                     nav_mode = rospy.ServiceProxy('/mavros/set_mode', SetMode)
                     if self.is_armed:
-                        resp_nav = nav_mode(SetModeRequest.MAV_MODE_MANUAL_ARMED,'')
+                        resp_nav = nav_mode(custom_mode='MANUAL')
                     else:
-                        resp_nav = nav_mode(SetModeRequest.MAV_MODE_MANUAL_DISARMED,'')
+                        resp_nav = nav_mode(custom_mode='MANUAL')
 
-                elif joy_buttons[5]:
+                elif joy_buttons[joystick['FSi6']['buttons']['SWC_center']]:
                     rospy.wait_for_service('/mavros/set_mode')
                     nav_mode = rospy.ServiceProxy('/mavros/set_mode', SetMode)
                     if self.is_armed:
-                        resp_nav = nav_mode(SetModeRequest.MAV_MODE_STABILIZE_ARMED,'')
+                        resp_nav = nav_mode(custom_mode='STABILIZE')
                     else:
-                        resp_nav = nav_mode(SetModeRequest.MAV_MODE_STABILIZE_DISARMED,'')
+                        resp_nav = nav_mode(custom_mode='STABILIZE')
+
+                elif joy_buttons[joystick['FSi6']['buttons']['SWC_down']]:
+                    rospy.wait_for_service('/mavros/set_mode')
+                    nav_mode = rospy.ServiceProxy('/mavros/set_mode', SetMode)
+                    if self.is_armed:
+                        resp_nav = nav_mode(custom_mode='ALT_HOLD')
+                    else:
+                        resp_nav = nav_mode(custom_mode='ALT_HOLD')
 
 
 

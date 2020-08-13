@@ -56,6 +56,31 @@ What is possible ?
 
     To run QGC parallel with user_mav, it's necessary to run user_mav first. If it's necessary to change the input, the parameter `joy_dev` can be used to set the one used.
 
+    This node can work with two controllers: the fs-i6 or the xbox 360 joystick.
+
+
+    The ROV can be controlled with the xbox 360 joystick as follows:
+    - SWA:
+        - UP: disarm vehicle.
+        - DOWN: arm the vehicle.
+    - Left stick:
+      - Up/Down: move the ROV up and down.
+      - Left/Right: rotate around Y axis
+    - Right stick:
+      - Up/Down: navigate forwards/backwards.
+      - Left/Right: yaw movement clockwise and counterclockwise.
+    - Directional pad:
+      - Up/Down: move the camera servo Up and Down.
+      - Left/Right: TBD
+    - A button: Gain decrease.
+    - B button: Lights brighter.
+    - Y button: Gain increase.
+    - X button: Lights dimmer.
+    - Left bumper: set Manual Control.
+    - Right bumper: set Stabilize Control.
+    - Left trigger: TBD.
+    - Right trigger: TBD.
+
     <p align="center">
       <img src="doc/imgs/800px-360_controller.svg.png">
     </p>
