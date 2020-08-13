@@ -30,6 +30,19 @@ FSi6 = {
         "VRA": 4,
         "VRB": 5
     }
+
+    "buttons" : {
+        "SWA_down"   : 0,
+        "SWA_up"     : 1,
+        "SWB_down"   : 2,
+        "SWB_up"     : 3,
+        "SWC_center" : 4,
+        "SWC_down"   : 5,
+        "SWC_up"     : 6,
+        "SWD_down"   : 7,
+        "SWD_up"     : 8
+
+    }
 }
 
 
